@@ -25,7 +25,6 @@ from telegram.ext import (
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 if not BOT_TOKEN:
-    # Supaya kalau di Render / env belum di-set, langsung ketahuan di log
     raise RuntimeError("Environment variable BOT_TOKEN belum diset.")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -247,3 +246,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
