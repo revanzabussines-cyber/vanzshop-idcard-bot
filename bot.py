@@ -14,7 +14,7 @@ from telegram.ext import (
     MessageHandler,
     Filters,
     CallbackContext,
-    CallbackQueryHandler
+    CallbackQueryHandler,
 )
 
 # =====================================
@@ -42,10 +42,15 @@ TEMPLATE_UK = os.path.join(BASE_DIR, "template_uk.png")
 TEMPLATE_INDIA = os.path.join(BASE_DIR, "template_india.png")
 FONT_PATH = os.path.join(BASE_DIR, "arialbd.ttf")
 
+# LINK CHANNEL & GROUP
+CHANNEL_URL = "https://t.me/VanzDisscusion"
+GROUP_URL = "https://t.me/VANZSHOPGROUP"
+
+# CONFIG POSISI TEKS
 # UK
 TEXT_X_UK = 240
 TEXT_Y_UK = 320
-FONT_SIZE_UK = 46
+FONT_SIZE_UK = 40  # sedikit lebih kecil dari sebelumnya
 
 # INDIA
 FONT_SIZE_INDIA = 42
@@ -53,19 +58,18 @@ TEXT_Y_INDIA = 675
 TEXT_COLOR_INDIA = (0, 0, 0)
 
 
-
 # =====================================
 # HELPER
 # =====================================
 
-def safe_filename(name: str):
+def safe_filename(name: str) -> str:
     name = name.upper().strip()
     name = re.sub(r"\s+", "_", name)
     name = re.sub(r"[^A-Z0-9_]", "", name)
     return (name or "IDCARD") + ".png"
 
 
-def generate_card(name: str, template_path: str):
+def generate_card(name: str, template_path: str) -> io.BytesIO:
     img = Image.open(template_path).convert("RGBA")
     draw = ImageDraw.Draw(img)
 
@@ -74,7 +78,7 @@ def generate_card(name: str, template_path: str):
     try:
         font_uk = ImageFont.truetype(FONT_PATH, FONT_SIZE_UK)
         font_india = ImageFont.truetype(FONT_PATH, FONT_SIZE_INDIA)
-    except:
+    except Exception:
         font_uk = ImageFont.load_default()
         font_india = ImageFont.load_default()
 
@@ -83,7 +87,16 @@ def generate_card(name: str, template_path: str):
         h = bbox[3] - bbox[1]
         x = TEXT_X_UK
         y = TEXT_Y_UK - h // 2
-        draw.text((x, y), text, font=font_uk, fill=(28, 26, 126))
+
+        # Outline/stroke biar teks lebih tebal & kebaca
+        draw.text(
+            (x, y),
+            text,
+            font=font_uk,
+            fill=(28, 26, 126),
+            stroke_width=2,
+            stroke_fill=(10, 8, 80),
+        )
 
     else:  # INDIA MODE
         bbox = draw.textbbox((0, 0), text, font=font_india)
@@ -99,7 +112,6 @@ def generate_card(name: str, template_path: str):
     return output
 
 
-
 # =====================================
 # HANDLERS
 # =====================================
@@ -108,11 +120,25 @@ def start(update: Update, context: CallbackContext):
     welcome_text = (
         "👋 **Selamat datang di VanzShop ID Card Bot!**\n\n"
         "Bikin ID Card otomatis dengan cepat.\n\n"
-        "Gunakan:\n"
-        "• `/card` → Buat 1 kartu\n"
-        "• `/batch` → Buat banyak kartu"
+        "Pilih menu di bawah atau pakai perintah:\n"
+        "• `/card` → Pilih template & buat 1 kartu\n"
+        "• `/batch` → Buat banyak kartu sekaligus"
     )
-    update.message.reply_text(welcome_text, parse_mode="Markdown")
+
+    keyboard = [
+        [InlineKeyboardButton("🇬🇧 Generate Card UK", callback_data="single_uk")],
+        [InlineKeyboardButton("🇮🇳 Generate Card India", callback_data="single_india")],
+        [
+            InlineKeyboardButton("📢 Channel", url=CHANNEL_URL),
+            InlineKeyboardButton("👥 Group", url=GROUP_URL),
+        ],
+    ]
+
+    update.message.reply_text(
+        welcome_text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
 
 
 def card(update: Update, context: CallbackContext):
@@ -120,7 +146,10 @@ def card(update: Update, context: CallbackContext):
         InlineKeyboardButton("🇬🇧 UK", callback_data="single_uk"),
         InlineKeyboardButton("🇮🇳 India", callback_data="single_india"),
     ]]
-    update.message.reply_text("Pilih template kartu:", reply_markup=InlineKeyboardMarkup(keyboard))
+    update.message.reply_text(
+        "Pilih template kartu:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 
 def batch(update: Update, context: CallbackContext):
@@ -128,7 +157,10 @@ def batch(update: Update, context: CallbackContext):
         InlineKeyboardButton("🇬🇧 UK Batch", callback_data="batch_uk"),
         InlineKeyboardButton("🇮🇳 India Batch", callback_data="batch_india"),
     ]]
-    update.message.reply_text("Pilih template batch:", reply_markup=InlineKeyboardMarkup(keyboard))
+    update.message.reply_text(
+        "Pilih template batch:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 
 def button_handler(update: Update, context: CallbackContext):
@@ -136,16 +168,19 @@ def button_handler(update: Update, context: CallbackContext):
     q.answer()
     data = q.data
 
+    # mode single / batch
     if data.startswith("single"):
         context.user_data["mode"] = "single"
     else:
         context.user_data["mode"] = "batch"
 
+    # pilih template
     if "uk" in data:
         context.user_data["template"] = TEMPLATE_UK
     else:
         context.user_data["template"] = TEMPLATE_INDIA
 
+    # instruksi lanjutan
     if context.user_data["mode"] == "single":
         q.edit_message_text("Kirim 1 nama untuk dibuatkan kartu.")
     else:
@@ -156,6 +191,7 @@ def handle_text(update: Update, context: CallbackContext):
     mode = context.user_data.get("mode")
     msg = update.message.text
 
+    # SINGLE MODE
     if mode == "single":
         update.message.reply_text("⏳ Membuat kartu...")
         img = generate_card(msg, context.user_data["template"])
@@ -163,8 +199,9 @@ def handle_text(update: Update, context: CallbackContext):
         context.user_data["mode"] = None
         return
 
+    # BATCH MODE
     if mode == "batch":
-        names = [n.strip() for n in msg.splitlines()][:10]
+        names = [n.strip() for n in msg.splitlines() if n.strip()][:10]
         update.message.reply_text(f"⏳ Membuat {len(names)} kartu...")
         for name in names:
             img = generate_card(name, context.user_data["template"])
@@ -173,8 +210,8 @@ def handle_text(update: Update, context: CallbackContext):
         context.user_data["mode"] = None
         return
 
-    update.message.reply_text("Gunakan /card atau /batch untuk mulai.")
-
+    # default kalau user chat biasa
+    update.message.reply_text("Gunakan /start, /card, atau /batch untuk mulai.")
 
 
 # =====================================
