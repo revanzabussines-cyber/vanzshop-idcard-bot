@@ -24,23 +24,25 @@ from telegram.ext import (
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # ambil dari environment variable
 
 if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN tidak ditemukan. Set env BOT_TOKEN di Render!")
+    raise ValueError("❌ BOT_TOKEN tidak ditemukan. Set env BOT_TOKEN di Render / Railway!")
 
 BOT_TOKEN = BOT_TOKEN.strip()
 
 # Validasi format token telegram (aman)
 TOKEN_PATTERN = re.compile(r"^\d+:[A-Za-z0-9_-]{30,}$")
 if not TOKEN_PATTERN.match(BOT_TOKEN):
-    raise ValueError("❌ Format BOT_TOKEN salah. Cek lagi token di Render.")
+    raise ValueError("❌ Format BOT_TOKEN salah. Cek lagi token di dashboard.")
 
 print("BOT_TOKEN OK | len =", len(BOT_TOKEN))
 
-# BASE DIR WAJIB ADA
+# BASE DIR
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TEMPLATE_UK = os.path.join(BASE_DIR, "template_uk.png")
 TEMPLATE_INDIA = os.path.join(BASE_DIR, "template_india.png")
-FONT_PATH = os.path.join(BASE_DIR, "arialbd.ttf")
+
+# FONT SEKARANG PAKAI ARIAL.TTF
+FONT_PATH = os.path.join(BASE_DIR, "arial.ttf")
 
 # LINK CHANNEL & GROUP
 CHANNEL_URL = "https://t.me/VanzDisscusion"
@@ -50,7 +52,7 @@ GROUP_URL = "https://t.me/VANZSHOPGROUP"
 # UK
 TEXT_X_UK = 240
 TEXT_Y_UK = 320
-FONT_SIZE_UK = 40  # sedikit lebih kecil dari sebelumnya
+FONT_SIZE_UK = 40
 
 # INDIA
 FONT_SIZE_INDIA = 42
@@ -88,7 +90,7 @@ def generate_card(name: str, template_path: str) -> io.BytesIO:
         x = TEXT_X_UK
         y = TEXT_Y_UK - h // 2
 
-        # Outline/stroke biar teks lebih tebal & kebaca
+        # outline tipis biar tulisan tetap nendang meski arial biasa
         draw.text(
             (x, y),
             text,
@@ -128,6 +130,10 @@ def start(update: Update, context: CallbackContext):
     keyboard = [
         [InlineKeyboardButton("🇬🇧 Generate Card UK", callback_data="single_uk")],
         [InlineKeyboardButton("🇮🇳 Generate Card India", callback_data="single_india")],
+        [
+            InlineKeyboardButton("📦 Batch Card UK", callback_data="batch_uk"),
+            InlineKeyboardButton("📦 Batch Card India", callback_data="batch_india"),
+        ],
         [
             InlineKeyboardButton("📢 Channel", url=CHANNEL_URL),
             InlineKeyboardButton("👥 Group", url=GROUP_URL),
