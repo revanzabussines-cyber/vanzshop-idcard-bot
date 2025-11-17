@@ -46,7 +46,7 @@ GROUP_URL = "https://t.me/VANZSHOPGROUP"
 
 # CONFIG POSISI TEKS UK
 TEXT_X_UK = 240
-TEXT_Y_UK = 365   # TURUN 30px dari sebelumnya
+TEXT_Y_UK = 335   # TURUN 30px dari sebelumnya
 FONT_SIZE_UK = 40
 
 # INDIA
@@ -239,4 +239,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
