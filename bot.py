@@ -1,6 +1,5 @@
 import os
 import re
-import random
 from uuid import uuid4
 
 from telegram import (
@@ -22,7 +21,7 @@ from telegram.ext import (
 # Ambil token dari environment (Railway variable: BOT_TOKEN)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Import generator
+# Import generator dari generate_id_cards.py
 from generate_id_cards import (
     generate_uk_card,
     generate_india_card,
@@ -32,7 +31,7 @@ from generate_id_cards import (
 # =========================
 # STATE
 # =========================
-CHOOSING_TEMPLATE, BD_MODE, INPUT_NAMES = range(3)
+CHOOSING_TEMPLATE, INPUT_NAMES = range(2)
 
 
 # =========================
@@ -104,62 +103,22 @@ def template_chosen(update: Update, context: CallbackContext):
 
     data = query.data
 
-    if data == "TPL_UK":
-        context.user_data["template"] = "UK"
-        query.message.reply_text(
-            "✅ Template *UK* dipilih.\n\n"
-            "Kirim nama (1–10 baris, 1 baris 1 nama):",
-            parse_mode="Markdown",
-        )
-        return INPUT_NAMES
+    tpl_map = {
+        "TPL_UK": "UK",
+        "TPL_IN": "INDIA",
+        "TPL_BD": "BD",
+    }
 
-    if data == "TPL_IN":
-        context.user_data["template"] = "INDIA"
-        query.message.reply_text(
-            "✅ Template *India* dipilih.\n\n"
-            "Kirim nama (1–10 baris, 1 baris 1 nama):",
-            parse_mode="Markdown",
-        )
-        return INPUT_NAMES
+    tpl = tpl_map.get(data)
+    if not tpl:
+        query.message.reply_text("Template tidak dikenal.")
+        return ConversationHandler.END
 
-    if data == "TPL_BD":
-        # Untuk BD, pilih mode dulu: nama saja atau nama + ID random
-        context.user_data["template"] = "BD"
-        keyboard = [
-            [
-                InlineKeyboardButton("📝 Nama saja", callback_data="BD_NAME_ONLY"),
-                InlineKeyboardButton("🆔 Nama + ID random", callback_data="BD_NAME_ID"),
-            ]
-        ]
-        query.message.reply_text(
-            "🇧🇩 Bangladesh selected.\n\n"
-            "Pilih format header di garis miring atas:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-        return BD_MODE
-
-    query.message.reply_text("Template tidak dikenal.")
-    return ConversationHandler.END
-
-
-# =========================
-# Mode BD (Nama saja / Nama+ID random)
-# =========================
-
-def bd_mode_chosen(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-
-    if query.data == "BD_NAME_ONLY":
-        context.user_data["bd_mode"] = "NAME_ONLY"
-        mode_text = "Nama saja"
-    else:
-        context.user_data["bd_mode"] = "NAME_ID"
-        mode_text = "Nama + ID random"
+    context.user_data["template"] = tpl
 
     query.message.reply_text(
-        f"✅ Mode BD: *{mode_text}*.\n\n"
-        "Sekarang kirim *nama* yang mau dipakai (1–10 baris, 1 baris 1 nama).",
+        f"✅ Template *{tpl}* dipilih.\n\n"
+        "Sekarang kirim *nama* yang mau dibuat kartunya (1–10 baris, 1 baris 1 nama).",
         parse_mode="Markdown",
     )
 
@@ -186,12 +145,11 @@ def handle_names(update: Update, context: CallbackContext):
 
     # Generate satu per satu
     for idx, name in enumerate(names, start=1):
-        safe_name = make_safe_filename(name)
+        pretty_name = name.title()
+        safe_name = make_safe_filename(pretty_name)
         out_path = f"{tpl.lower()}_{safe_name}_{idx}.png"
 
         try:
-            pretty_name = name.title()
-
             # ====== Generate kartu ======
             if tpl == "UK":
                 generate_uk_card(pretty_name, out_path)
@@ -221,26 +179,14 @@ def handle_names(update: Update, context: CallbackContext):
                     "📞 *Mobile (di kartu):* +917546728719\n"
                 )
 
-            else:
-                bd_mode = context.user_data.get("bd_mode", "NAME_ONLY")
+            else:  # BD
+                # BD cuma pakai nama (tanpa ID random), font & style diatur di generate_id_cards.py
+                generate_bangladesh_card(pretty_name, out_path)
 
-                if bd_mode == "NAME_ONLY":
-                    header_text = pretty_name
-                    id_text = "-"
-                else:
-                    # ID random 1–9999 dengan 4 digit (0001–9999)
-                    id_num = random.randint(1, 9999)
-                    id_text = f"{id_num:04d}"
-                    header_text = f"{pretty_name} {id_text}"
-
-                # header_text yang dikirim ke template BD
-                generate_bangladesh_card(header_text, out_path)
-
-                caption = f"🇧🇩 BD • {header_text}"
+                caption = f"🇧🇩 Bangladesh • {pretty_name}"
                 info_text = (
                     "📙 *Bangladesh Fee Receipt (Uttara Town College)*\n\n"
                     f"👤 *Nama (header):* {pretty_name}\n"
-                    f"🆔 *ID random:* {id_text}\n"
                     "🏫 *College:* Uttara Town College\n"
                     "📆 *Registration Date (di kartu):* 14.10.25\n"
                     "💰 *Amount (di kartu):* 18500 BDT\n"
@@ -293,9 +239,6 @@ def main():
         states={
             CHOOSING_TEMPLATE: [
                 CallbackQueryHandler(template_chosen, pattern="^TPL_"),
-            ],
-            BD_MODE: [
-                CallbackQueryHandler(bd_mode_chosen, pattern="^BD_"),
             ],
             INPUT_NAMES: [
                 MessageHandler(Filters.text & ~Filters.command, handle_names),
