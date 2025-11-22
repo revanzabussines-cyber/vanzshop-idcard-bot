@@ -7,19 +7,19 @@ from telegram import (
     InlineKeyboardMarkup,
 )
 from telegram.ext import (
-    ApplicationBuilder,
+    Updater,
     CommandHandler,
-    ContextTypes,
     ConversationHandler,
     MessageHandler,
     CallbackQueryHandler,
-    filters,
+    Filters,
+    CallbackContext,
 )
 
-# 🔥 AMBIL BOT TOKEN DARI RAILWAY ENV
+# 🔥 Ambil token dari ENV (Railway Variable: BOT_TOKEN)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Generator dari all.py
+# Import generator dari all.py
 from all import (
     generate_uk_card,
     generate_india_card,
@@ -35,20 +35,42 @@ GROUP_URL = "https://t.me/VANZSHOPGROUP"
 
 (
     CHOOSING_TEMPLATE,
-    UK_NAME, UK_ID, UK_BIRTH, UK_ADDRESS, UK_ACTIVE, UK_PHOTO,
-    IN_IDNO, IN_CLASS, IN_DOB, IN_VALIDITY, IN_MOBILE, IN_PHOTO,
-    BD_STUDENT_ROLL, BD_CENTRE, BD_REG_DATE, BD_NAME,
-    BD_AMOUNT_NUMBER, BD_AMOUNT_WORDS, BD_INSTRUMENT_NO,
-    BD_INSTRUMENT_DATE, BD_PAYMENT_TYPE, BD_BANK, BD_SESSION_TEXT,
+    # UK
+    UK_NAME,
+    UK_ID,
+    UK_BIRTH,
+    UK_ADDRESS,
+    UK_ACTIVE,
+    UK_PHOTO,
+    # INDIA
+    IN_IDNO,
+    IN_CLASS,
+    IN_DOB,
+    IN_VALIDITY,
+    IN_MOBILE,
+    IN_PHOTO,
+    # BANGLADESH
+    BD_STUDENT_ROLL,
+    BD_CENTRE,
+    BD_REG_DATE,
+    BD_NAME,
+    BD_AMOUNT_NUMBER,
+    BD_AMOUNT_WORDS,
+    BD_INSTRUMENT_NO,
+    BD_INSTRUMENT_DATE,
+    BD_PAYMENT_TYPE,
+    BD_BANK,
+    BD_SESSION_TEXT,
 ) = range(24)
 
 
-# ================== /start ==================
+# ================== HANDLER /start ==================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update: Update, context: CallbackContext):
     text = (
         "👋 Selamat datang di *VanzShop ID Card Bot!*\n\n"
-        "Pilih kartu yang mau dibuat:"
+        "Pilih kartu yang mau dibuat:\n"
+        "• /card → Pilih template & buat 1 kartu\n"
     )
 
     keyboard = [
@@ -65,15 +87,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
     ]
 
-    await update.message.reply_text(
-        text, parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 
-# ================== /card ==================
+# ================== /card: pilih template ==================
 
-async def card_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def card_cmd(update: Update, context: CallbackContext):
     keyboard = [
         [
             InlineKeyboardButton("🇬🇧 UK", callback_data="TPL_UK"),
@@ -81,89 +104,105 @@ async def card_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🇧🇩 Bangladesh", callback_data="TPL_BD"),
         ]
     ]
-    await update.message.reply_text(
+    update.message.reply_text(
         "Pilih template kartu:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return CHOOSING_TEMPLATE
 
 
-async def card_from_start_button(update, context):
+def card_from_start_button(update: Update, context: CallbackContext):
+    """Masuk flow dari tombol di /start."""
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
-    if query.data == "single_uk":
+    data = query.data
+    if data == "single_uk":
         context.user_data["template"] = "UK"
-        await query.message.reply_text("Masukkan *Nama Lengkap*:", parse_mode="Markdown")
+        query.message.reply_text("🇬🇧 *Kartu UK*\n\nMasukkan *Nama lengkap*:", parse_mode="Markdown")
         return UK_NAME
 
-    if query.data == "single_india":
+    if data == "single_india":
         context.user_data["template"] = "INDIA"
-        await query.message.reply_text("Masukkan *ID No*:", parse_mode="Markdown")
+        query.message.reply_text("🇮🇳 *Kartu India*\n\nMasukkan *ID No*:", parse_mode="Markdown")
         return IN_IDNO
 
-    if query.data == "single_bd":
+    if data == "single_bd":
         context.user_data["template"] = "BD"
-        await query.message.reply_text("Masukkan *Student Roll*:", parse_mode="Markdown")
+        query.message.reply_text("🇧🇩 *Fee Receipt Bangladesh*\n\nMasukkan *Student Roll no*:", parse_mode="Markdown")
         return BD_STUDENT_ROLL
 
+    query.message.reply_text("Pilihan tidak dikenal.")
+    return ConversationHandler.END
 
-async def template_chosen(update, context):
+
+def template_chosen(update: Update, context: CallbackContext):
+    """Dipanggil kalau user pilih template lewat /card."""
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
-    if query.data == "TPL_UK":
+    tpl = query.data
+    if tpl == "TPL_UK":
         context.user_data["template"] = "UK"
-        await query.message.reply_text("Masukkan *Nama*:", parse_mode="Markdown")
+        query.message.reply_text("🇬🇧 *Kartu UK*\n\nMasukkan *Nama lengkap*:", parse_mode="Markdown")
         return UK_NAME
 
-    if query.data == "TPL_IN":
+    if tpl == "TPL_IN":
         context.user_data["template"] = "INDIA"
-        await query.message.reply_text("Masukkan *ID No*:", parse_mode="Markdown")
+        query.message.reply_text("🇮🇳 *Kartu India*\n\nMasukkan *ID No*:", parse_mode="Markdown")
         return IN_IDNO
 
-    if query.data == "TPL_BD":
+    if tpl == "TPL_BD":
         context.user_data["template"] = "BD"
-        await query.message.reply_text("Masukkan *Student Roll*:", parse_mode="Markdown")
+        query.message.reply_text("🇧🇩 *Fee Receipt Bangladesh*\n\nMasukkan *Student Roll no*:", parse_mode="Markdown")
         return BD_STUDENT_ROLL
 
+    query.message.reply_text("Pilihan tidak dikenal.")
+    return ConversationHandler.END
 
-# ================== FLOW UK ==================
 
-async def uk_name(update, context):
+# ================== FLOW KARTU UK ==================
+
+def uk_name(update: Update, context: CallbackContext):
     context.user_data["uk_name"] = update.message.text
-    await update.message.reply_text("Masukkan *Student ID*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Student ID*:", parse_mode="Markdown")
     return UK_ID
 
-async def uk_id(update, context):
+
+def uk_id(update: Update, context: CallbackContext):
     context.user_data["uk_id"] = update.message.text
-    await update.message.reply_text("Masukkan *Tanggal Lahir*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Tanggal lahir* (contoh: 10/10/2005):", parse_mode="Markdown")
     return UK_BIRTH
 
-async def uk_birth(update, context):
+
+def uk_birth(update: Update, context: CallbackContext):
     context.user_data["uk_birth"] = update.message.text
-    await update.message.reply_text("Masukkan *Alamat*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Alamat* (contoh: London, UK):", parse_mode="Markdown")
     return UK_ADDRESS
 
-async def uk_address(update, context):
+
+def uk_address(update: Update, context: CallbackContext):
     context.user_data["uk_address"] = update.message.text
-    await update.message.reply_text("Masukkan *Active Until*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Active until* (contoh: 06/2028):", parse_mode="Markdown")
     return UK_ACTIVE
 
-async def uk_active(update, context):
+
+def uk_active(update: Update, context: CallbackContext):
     context.user_data["uk_active"] = update.message.text
-    await update.message.reply_text("Kirim *foto* (bukan file):", parse_mode="Markdown")
+    update.message.reply_text("Kirim *foto* untuk dimasukin ke kartu (kirim sebagai foto, bukan file).",
+                              parse_mode="Markdown")
     return UK_PHOTO
 
-async def uk_photo(update, context):
-    photo = update.message.photo[-1]
-    file = await photo.get_file()
 
-    tmp = f"uk_{uuid4().hex}.jpg"
-    await file.download_to_drive(tmp)
+def uk_photo(update: Update, context: CallbackContext):
+    photo = update.message.photo[-1]
+    file = photo.get_file()
+
+    tmp_photo = f"uk_photo_{uuid4().hex}.jpg"
+    file.download(tmp_photo)
 
     data = context.user_data
-    out = f"uk_card_{uuid4().hex}.png"
+    out_path = f"uk_card_{uuid4().hex}.png"
 
     try:
         generate_uk_card(
@@ -172,58 +211,68 @@ async def uk_photo(update, context):
             birth=data["uk_birth"],
             address=data["uk_address"],
             active_until=data["uk_active"],
-            photo_path=tmp,
-            out_path=out
+            photo_path=tmp_photo,
+            out_path=out_path,
         )
-        with open(out, "rb") as img:
-            await update.message.reply_photo(img, caption="✅ Kartu UK jadi gan!")
+        with open(out_path, "rb") as img:
+            update.message.reply_photo(
+                img,
+                caption="✅ Kartu UK berhasil dibuat.",
+            )
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        update.message.reply_text(f"❌ Gagal generate kartu UK.\nError: {e}")
     finally:
-        for f in (tmp, out):
-            if os.path.exists(f):
-                os.remove(f)
+        if os.path.exists(tmp_photo):
+            os.remove(tmp_photo)
+        if os.path.exists(out_path):
+            os.remove(out_path)
         context.user_data.clear()
 
     return ConversationHandler.END
 
 
-# ================== FLOW INDIA ==================
+# ================== FLOW KARTU INDIA ==================
 
-async def in_idno(update, context):
+def in_idno(update: Update, context: CallbackContext):
     context.user_data["in_idno"] = update.message.text
-    await update.message.reply_text("Masukkan *Class*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Class* (contoh: ECE):", parse_mode="Markdown")
     return IN_CLASS
 
-async def in_class(update, context):
+
+def in_class(update: Update, context: CallbackContext):
     context.user_data["in_class"] = update.message.text
-    await update.message.reply_text("Masukkan *D.O.B*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *D.O.B* (contoh: 15/01/2000):", parse_mode="Markdown")
     return IN_DOB
 
-async def in_dob(update, context):
+
+def in_dob(update: Update, context: CallbackContext):
     context.user_data["in_dob"] = update.message.text
-    await update.message.reply_text("Masukkan *Validity*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Validity* (contoh: 11/25 - 11/26):", parse_mode="Markdown")
     return IN_VALIDITY
 
-async def in_validity(update, context):
+
+def in_validity(update: Update, context: CallbackContext):
     context.user_data["in_validity"] = update.message.text
-    await update.message.reply_text("Masukkan *Mobile*:", parse_mode="Markdown")
+    update.message.reply_text("Masukkan *Mobile* (contoh: +917546728719):", parse_mode="Markdown")
     return IN_MOBILE
 
-async def in_mobile(update, context):
+
+def in_mobile(update: Update, context: CallbackContext):
     context.user_data["in_mobile"] = update.message.text
-    await update.message.reply_text("Kirim *foto* (bukan file):", parse_mode="Markdown")
+    update.message.reply_text("Kirim *foto* untuk dimasukin ke kartu (kirim sebagai foto, bukan file).",
+                              parse_mode="Markdown")
     return IN_PHOTO
 
-async def in_photo(update, context):
-    photo = update.message.photo[-1]
-    file = await photo.get_file()
 
-    tmp = f"in_{uuid4().hex}.jpg"
-    await file.download_to_drive(tmp)
+def in_photo(update: Update, context: CallbackContext):
+    photo = update.message.photo[-1]
+    file = photo.get_file()
+
+    tmp_photo = f"in_photo_{uuid4().hex}.jpg"
+    file.download(tmp_photo)
 
     data = context.user_data
-    out = f"india_{uuid4().hex}.png"
+    out_path = f"india_card_{uuid4().hex}.png"
 
     try:
         generate_india_card(
@@ -232,79 +281,95 @@ async def in_photo(update, context):
             dob=data["in_dob"],
             validity=data["in_validity"],
             mobile=data["in_mobile"],
-            photo_path=tmp,
-            out_path=out
+            photo_path=tmp_photo,
+            out_path=out_path,
         )
-        with open(out, "rb") as img:
-            await update.message.reply_photo(img, caption="✅ Kartu India jadi!")
+        with open(out_path, "rb") as img:
+            update.message.reply_photo(
+                img,
+                caption="✅ Kartu India berhasil dibuat.",
+            )
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        update.message.reply_text(f"❌ Gagal generate kartu India.\nError: {e}")
     finally:
-        for f in (tmp, out):
-            if os.path.exists(f):
-                os.remove(f)
+        if os.path.exists(tmp_photo):
+            os.remove(tmp_photo)
+        if os.path.exists(out_path):
+            os.remove(out_path)
         context.user_data.clear()
 
     return ConversationHandler.END
 
 
-# ================== FLOW BANGLADESH ==================
+# ================== FLOW BANGLADESH RECEIPT ==================
 
-async def bd_student_roll(update, context):
+def bd_student_roll(update: Update, context: CallbackContext):
     context.user_data["bd_student_roll"] = update.message.text
-    await update.message.reply_text("Masukkan *Centre*:")
+    update.message.reply_text("Masukkan *Centre*:", parse_mode="Markdown")
     return BD_CENTRE
 
-async def bd_centre(update, context):
+
+def bd_centre(update: Update, context: CallbackContext):
     context.user_data["bd_centre"] = update.message.text
-    await update.message.reply_text("Masukkan *Registration Date*:")
+    update.message.reply_text("Masukkan *Registration Date* (contoh: 14.10.25):", parse_mode="Markdown")
     return BD_REG_DATE
 
-async def bd_reg_date(update, context):
+
+def bd_reg_date(update: Update, context: CallbackContext):
     context.user_data["bd_reg_date"] = update.message.text
-    await update.message.reply_text("Masukkan *Name*:")
+    update.message.reply_text("Masukkan *Name*:", parse_mode="Markdown")
     return BD_NAME
 
-async def bd_name(update, context):
+
+def bd_name(update: Update, context: CallbackContext):
     context.user_data["bd_name"] = update.message.text
-    await update.message.reply_text("Masukkan *Amount Number*:")
+    update.message.reply_text("Masukkan *Amount angka* (contoh: 18500):", parse_mode="Markdown")
     return BD_AMOUNT_NUMBER
 
-async def bd_amount_number(update, context):
+
+def bd_amount_number(update: Update, context: CallbackContext):
     context.user_data["bd_amount_number"] = update.message.text
-    await update.message.reply_text("Masukkan *Amount Words*:")
+    update.message.reply_text("Masukkan *Amount dalam kata* (contoh: Eighteen thousand ...):",
+                              parse_mode="Markdown")
     return BD_AMOUNT_WORDS
 
-async def bd_amount_words(update, context):
+
+def bd_amount_words(update: Update, context: CallbackContext):
     context.user_data["bd_amount_words"] = update.message.text
-    await update.message.reply_text("Masukkan *Instrument No*:")
+    update.message.reply_text("Masukkan *Instrument No*:", parse_mode="Markdown")
     return BD_INSTRUMENT_NO
 
-async def bd_instr_no(update, context):
+
+def bd_instr_no(update: Update, context: CallbackContext):
     context.user_data["bd_instr_no"] = update.message.text
-    await update.message.reply_text("Masukkan *Instrument Date*:")
+    update.message.reply_text("Masukkan *Instrument Date* (contoh: 14.10.25):", parse_mode="Markdown")
     return BD_INSTRUMENT_DATE
 
-async def bd_instr_date(update, context):
+
+def bd_instr_date(update: Update, context: CallbackContext):
     context.user_data["bd_instr_date"] = update.message.text
-    await update.message.reply_text("Masukkan *Payment Type*:")
+    update.message.reply_text("Masukkan *Payment Type* (contoh: BDT):", parse_mode="Markdown")
     return BD_PAYMENT_TYPE
 
-async def bd_payment(update, context):
+
+def bd_payment_type(update: Update, context: CallbackContext):
     context.user_data["bd_payment_type"] = update.message.text
-    await update.message.reply_text("Masukkan *Bank*:")
+    update.message.reply_text("Masukkan *Bank* (contoh: Islami Bank):", parse_mode="Markdown")
     return BD_BANK
 
-async def bd_bank(update, context):
+
+def bd_bank(update: Update, context: CallbackContext):
     context.user_data["bd_bank"] = update.message.text
-    await update.message.reply_text("Masukkan *Session Text*:")
+    update.message.reply_text("Masukkan *teks session* (contoh: tuition fees of 1st semester ...):",
+                              parse_mode="Markdown")
     return BD_SESSION_TEXT
 
-async def bd_session_text(update, context):
-    data = context.user_data
-    data["bd_session_text"] = update.message.text
 
-    out = f"bd_{uuid4().hex}.png"
+def bd_session_text(update: Update, context: CallbackContext):
+    context.user_data["bd_session_text"] = update.message.text
+
+    data = context.user_data
+    out_path = f"bd_receipt_{uuid4().hex}.png"
 
     try:
         generate_bangladesh_receipt(
@@ -319,17 +384,28 @@ async def bd_session_text(update, context):
             payment_type=data["bd_payment_type"],
             bank=data["bd_bank"],
             session_text=data["bd_session_text"],
-            out_path=out,
+            out_path=out_path,
         )
-        with open(out, "rb") as img:
-            await update.message.reply_photo(img, caption="✅ Receipt Bangladesh jadi!")
+        with open(out_path, "rb") as img:
+            update.message.reply_photo(
+                img,
+                caption="✅ Fee receipt Bangladesh berhasil dibuat.",
+            )
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        update.message.reply_text(f"❌ Gagal generate receipt BD.\nError: {e}")
     finally:
-        if os.path.exists(out):
-            os.remove(out)
+        if os.path.exists(out_path):
+            os.remove(out_path)
         context.user_data.clear()
 
+    return ConversationHandler.END
+
+
+# ================== /cancel ==================
+
+def cancel(update: Update, context: CallbackContext):
+    context.user_data.clear()
+    update.message.reply_text("❌ Proses dibatalkan.")
     return ConversationHandler.END
 
 
@@ -337,53 +413,60 @@ async def bd_session_text(update, context):
 
 def main():
     if not BOT_TOKEN:
-        raise RuntimeError("❌ BOT_TOKEN belum di-set di Railway Variables!")
+        raise RuntimeError("BOT_TOKEN environment variable belum di-set.")
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    updater = Updater(token=BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("card", card_cmd))
+    # /start
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("card", card_cmd))
 
+    # Conversation untuk semua flow
     conv = ConversationHandler(
         entry_points=[
-            CallbackQueryHandler(card_from_start_button, pattern="^single_"),
             CommandHandler("card", card_cmd),
+            CallbackQueryHandler(card_from_start_button, pattern="^single_"),
         ],
         states={
-            CHOOSING_TEMPLATE: [CallbackQueryHandler(template_chosen, pattern="^TPL_")],
-
-            UK_NAME: [MessageHandler(filters.TEXT, uk_name)],
-            UK_ID: [MessageHandler(filters.TEXT, uk_id)],
-            UK_BIRTH: [MessageHandler(filters.TEXT, uk_birth)],
-            UK_ADDRESS: [MessageHandler(filters.TEXT, uk_address)],
-            UK_ACTIVE: [MessageHandler(filters.TEXT, uk_active)],
-            UK_PHOTO: [MessageHandler(filters.PHOTO, uk_photo)],
-
-            IN_IDNO: [MessageHandler(filters.TEXT, in_idno)],
-            IN_CLASS: [MessageHandler(filters.TEXT, in_class)],
-            IN_DOB: [MessageHandler(filters.TEXT, in_dob)],
-            IN_VALIDITY: [MessageHandler(filters.TEXT, in_validity)],
-            IN_MOBILE: [MessageHandler(filters.TEXT, in_mobile)],
-            IN_PHOTO: [MessageHandler(filters.PHOTO, in_photo)],
-
-            BD_STUDENT_ROLL: [MessageHandler(filters.TEXT, bd_student_roll)],
-            BD_CENTRE: [MessageHandler(filters.TEXT, bd_centre)],
-            BD_REG_DATE: [MessageHandler(filters.TEXT, bd_reg_date)],
-            BD_NAME: [MessageHandler(filters.TEXT, bd_name)],
-            BD_AMOUNT_NUMBER: [MessageHandler(filters.TEXT, bd_amount_number)],
-            BD_AMOUNT_WORDS: [MessageHandler(filters.TEXT, bd_amount_words)],
-            BD_INSTRUMENT_NO: [MessageHandler(filters.TEXT, bd_instr_no)],
-            BD_INSTRUMENT_DATE: [MessageHandler(filters.TEXT, bd_instr_date)],
-            BD_PAYMENT_TYPE: [MessageHandler(filters.TEXT, bd_payment)],
-            BD_BANK: [MessageHandler(filters.TEXT, bd_bank)],
-            BD_SESSION_TEXT: [MessageHandler(filters.TEXT, bd_session_text)],
+            CHOOSING_TEMPLATE: [
+                CallbackQueryHandler(template_chosen, pattern="^TPL_"),
+            ],
+            # UK
+            UK_NAME: [MessageHandler(Filters.text & ~Filters.command, uk_name)],
+            UK_ID: [MessageHandler(Filters.text & ~Filters.command, uk_id)],
+            UK_BIRTH: [MessageHandler(Filters.text & ~Filters.command, uk_birth)],
+            UK_ADDRESS: [MessageHandler(Filters.text & ~Filters.command, uk_address)],
+            UK_ACTIVE: [MessageHandler(Filters.text & ~Filters.command, uk_active)],
+            UK_PHOTO: [MessageHandler(Filters.photo, uk_photo)],
+            # INDIA
+            IN_IDNO: [MessageHandler(Filters.text & ~Filters.command, in_idno)],
+            IN_CLASS: [MessageHandler(Filters.text & ~Filters.command, in_class)],
+            IN_DOB: [MessageHandler(Filters.text & ~Filters.command, in_dob)],
+            IN_VALIDITY: [MessageHandler(Filters.text & ~Filters.command, in_validity)],
+            IN_MOBILE: [MessageHandler(Filters.text & ~Filters.command, in_mobile)],
+            IN_PHOTO: [MessageHandler(Filters.photo, in_photo)],
+            # BANGLADESH
+            BD_STUDENT_ROLL: [MessageHandler(Filters.text & ~Filters.command, bd_student_roll)],
+            BD_CENTRE: [MessageHandler(Filters.text & ~Filters.command, bd_centre)],
+            BD_REG_DATE: [MessageHandler(Filters.text & ~Filters.command, bd_reg_date)],
+            BD_NAME: [MessageHandler(Filters.text & ~Filters.command, bd_name)],
+            BD_AMOUNT_NUMBER: [MessageHandler(Filters.text & ~Filters.command, bd_amount_number)],
+            BD_AMOUNT_WORDS: [MessageHandler(Filters.text & ~Filters.command, bd_amount_words)],
+            BD_INSTRUMENT_NO: [MessageHandler(Filters.text & ~Filters.command, bd_instr_no)],
+            BD_INSTRUMENT_DATE: [MessageHandler(Filters.text & ~Filters.command, bd_instr_date)],
+            BD_PAYMENT_TYPE: [MessageHandler(Filters.text & ~Filters.command, bd_payment_type)],
+            BD_BANK: [MessageHandler(Filters.text & ~Filters.command, bd_bank)],
+            BD_SESSION_TEXT: [MessageHandler(Filters.text & ~Filters.command, bd_session_text)],
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    app.add_handler(conv)
+    dp.add_handler(conv)
 
-    app.run_polling()
+    # Jalanin bot
+    updater.start_polling()
+    updater.idle()
 
 
 if __name__ == "__main__":
