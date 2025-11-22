@@ -71,7 +71,7 @@ def make_safe_filename(text: str) -> str:
 # =========================
 
 # UK
-UK_NAME_POS = (260, 260)   # posisi nama
+UK_NAME_POS = (250, 325)   # posisi nama
 UK_NAME_SIZE = 42
 
 # INDIA
@@ -332,3 +332,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
