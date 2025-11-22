@@ -1,10 +1,12 @@
 import os
+import re
 from uuid import uuid4
 
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputFile,
 )
 from telegram.ext import (
     Updater,
@@ -29,7 +31,18 @@ from generate_id_cards import (
 # =========================
 # STATE
 # =========================
-CHOOSING_TEMPLATE, INPUT_NAMES = range(2)
+CHOOSING_TEMPLATE, BD_MODE, INPUT_NAMES = range(3)
+
+
+# =========================
+# HELPER
+# =========================
+
+def make_safe_filename(text: str) -> str:
+    """Bikin nama file aman: huruf/angka + underscore."""
+    clean = re.sub(r"[^A-Za-z0-9]+", "_", text.strip())
+    return clean or "card"
+
 
 # =========================
 # /start
@@ -38,9 +51,9 @@ CHOOSING_TEMPLATE, INPUT_NAMES = range(2)
 def start(update: Update, context: CallbackContext):
     text = (
         "👋 Selamat datang di *VanzShop ID Card Bot!* \n\n"
-        "✨ Model baru: cukup kirim *NAMA* aja.\n"
-        "• 1 nama → 1 kartu\n"
-        "• Banyak nama (maks 10) → 1 baris = 1 kartu\n\n"
+        "✨ Model baru: cukup kirim *NAMA* atau *ID* aja.\n"
+        "• 1 baris → 1 kartu\n"
+        "• Bisa banyak baris (maks 10), 1 baris 1 kartu\n\n"
         "Pilih template dulu:"
     )
 
@@ -88,29 +101,67 @@ def template_chosen(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
 
-    tpl_map = {
-        "TPL_UK": "UK",
-        "TPL_IN": "INDIA",
-        "TPL_BD": "BD",
-    }
-
     data = query.data
-    tpl = tpl_map.get(data)
-    if not tpl:
-        query.message.reply_text("Template tidak dikenal.")
-        return ConversationHandler.END
 
-    context.user_data["template"] = tpl
+    if data == "TPL_UK":
+        context.user_data["template"] = "UK"
+        query.message.reply_text(
+            "✅ Template *UK* dipilih.\n\n"
+            "Kirim nama (1–10 baris, 1 baris 1 nama):",
+            parse_mode="Markdown",
+        )
+        return INPUT_NAMES
+
+    if data == "TPL_IN":
+        context.user_data["template"] = "INDIA"
+        query.message.reply_text(
+            "✅ Template *India* dipilih.\n\n"
+            "Kirim nama (1–10 baris, 1 baris 1 nama):",
+            parse_mode="Markdown",
+        )
+        return INPUT_NAMES
+
+    if data == "TPL_BD":
+        # Untuk BD, pilih mode dulu: nama atau number
+        context.user_data["template"] = "BD"
+        keyboard = [
+            [
+                InlineKeyboardButton("📝 Nama di Header", callback_data="BD_NAME"),
+                InlineKeyboardButton("🔢 Number / ID di Header", callback_data="BD_ID"),
+            ]
+        ]
+        query.message.reply_text(
+            "🇧🇩 Bangladesh selected.\n\n"
+            "Pilih mau pakai *Nama* atau *Number/ID* di baris miring atas:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+        return BD_MODE
+
+    query.message.reply_text("Template tidak dikenal.")
+    return ConversationHandler.END
+
+
+# =========================
+# Mode BD (Nama / Number)
+# =========================
+
+def bd_mode_chosen(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+
+    if query.data == "BD_NAME":
+        context.user_data["bd_mode"] = "NAME"
+        mode_text = "Nama"
+    else:
+        context.user_data["bd_mode"] = "ID"
+        mode_text = "Number / ID"
 
     query.message.reply_text(
-        "✅ Template *{}* dipilih.\n\n"
-        "Sekarang kirim nama yang mau dibuat kartunya.\n"
-        "• Bisa 1 nama saja\n"
-        "• Bisa banyak nama (maks 10), *1 baris 1 nama*\n\n"
-        "Contoh:\n"
-        "`Revanza Axcel`\n"
-        "`Budi Pratama`\n"
-        "`Siti Aisyah`".format(tpl),
+        f"✅ Mode BD: *{mode_text}*.\n\n"
+        "Sekarang kirim teks yang mau dipakai (1–10 baris, 1 baris 1 item).\n"
+        "• Kalau mode *Nama* → isi nama lengkap per baris.\n"
+        "• Kalau mode *Number/ID* → isi nomor / ID per baris.",
         parse_mode="Markdown",
     )
 
@@ -128,18 +179,20 @@ def handle_names(update: Update, context: CallbackContext):
     # Split per baris
     names = [line.strip() for line in raw.splitlines() if line.strip()]
     if not names:
-        update.message.reply_text("❌ Nama kosong, kirim lagi ya (1–10 nama).")
+        update.message.reply_text("❌ Input kosong, kirim lagi ya (1–10 baris).")
         return INPUT_NAMES
 
     if len(names) > 10:
         names = names[:10]
-        update.message.reply_text("⚠ Maksimal 10 nama. Dipakai 10 nama pertama.")
+        update.message.reply_text("⚠ Maksimal 10 baris. Dipakai 10 baris pertama.")
 
     # Generate satu per satu
     for idx, name in enumerate(names, start=1):
-        out_path = f"{tpl.lower()}_{idx}_{uuid4().hex}.png"
+        safe_name = make_safe_filename(name)
+        out_path = f"{tpl.lower()}_{safe_name}_{idx}.png"
 
         try:
+            # ====== Generate kartu ======
             if tpl == "UK":
                 generate_uk_card(name, out_path)
             elif tpl == "INDIA":
@@ -147,9 +200,55 @@ def handle_names(update: Update, context: CallbackContext):
             else:
                 generate_bangladesh_card(name, out_path)
 
-            caption = f"{tpl} • {name}"
-            with open(out_path, "rb") as img:
-                update.message.reply_photo(img, caption=caption)
+            # ====== Kirim file PNG sebagai document ======
+            with open(out_path, "rb") as f:
+                doc = InputFile(f, filename=os.path.basename(out_path))
+                update.message.reply_document(doc)
+
+            # ====== Kirim format teks biodata mirip contoh Indonesia ======
+            pretty_name = name.title()
+
+            if tpl == "UK":
+                info_text = (
+                    "📘 *Kartu UK (LSE)*\n\n"
+                    f"👤 *Nama Lengkap:* {pretty_name}\n"
+                    "🏫 *Universitas:* The London School of Economics and Political Science (LSE)\n"
+                    "🪪 *ID (di kartu):* 1201-0732\n"
+                    "🎂 *Tanggal Lahir (di kartu):* 10/10/2005\n"
+                    "📍 *Alamat (di kartu):* London, UK\n"
+                )
+
+            elif tpl == "INDIA":
+                info_text = (
+                    "📗 *Kartu India (University of Mumbai)*\n\n"
+                    f"👤 *Nama Lengkap:* {pretty_name}\n"
+                    "🏫 *Universitas:* University of Mumbai\n"
+                    "🪪 *ID No (di kartu):* MU23ECE001\n"
+                    "📚 *Class (di kartu):* ECE\n"
+                    "🎂 *D.O.B (di kartu):* 15/01/2000\n"
+                    "📆 *Validity (di kartu):* 11/25 - 11/26\n"
+                    "📞 *Mobile (di kartu):* +917546728719\n"
+                )
+
+            else:
+                bd_mode = context.user_data.get("bd_mode", "NAME")
+                if bd_mode == "NAME":
+                    header_label = "Nama"
+                    display_value = pretty_name
+                else:
+                    header_label = "Number/ID"
+                    display_value = name
+
+                info_text = (
+                    "📙 *Bangladesh Fee Receipt (Uttara Town College)*\n\n"
+                    f"🔹 *{header_label} (header miring):* {display_value}\n"
+                    "🏫 *College:* Uttara Town College\n"
+                    "📍 *Alamat (di kartu):* Dhaka 1230\n"
+                    "📆 *Registration Date (di kartu):* 14.10.25\n"
+                    "💰 *Amount (di kartu):* 18500 BDT\n"
+                )
+
+            update.message.reply_text(info_text, parse_mode="Markdown")
 
         except Exception as e:
             update.message.reply_text(f"❌ Gagal generate untuk '{name}'. Error: {e}")
@@ -190,6 +289,9 @@ def main():
         states={
             CHOOSING_TEMPLATE: [
                 CallbackQueryHandler(template_chosen, pattern="^TPL_"),
+            ],
+            BD_MODE: [
+                CallbackQueryHandler(bd_mode_chosen, pattern="^BD_"),
             ],
             INPUT_NAMES: [
                 MessageHandler(Filters.text & ~Filters.command, handle_names),
