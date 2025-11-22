@@ -3,64 +3,130 @@ from PIL import Image, ImageDraw, ImageFont
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# =========================
 # TEMPLATE PATH
+# =========================
 TEMPLATE_UK = os.path.join(BASE_DIR, "template_uk.png")
 TEMPLATE_IN = os.path.join(BASE_DIR, "template_india.png")
 TEMPLATE_BD = os.path.join(BASE_DIR, "template_bd.png")
 
-# FONT
-ARIAL_BOLD = os.path.join(BASE_DIR, "Arial-bold", "Arial-Bold.ttf")
-VERDANA = os.path.join(BASE_DIR, "verdana.ttf")
+# =========================
+# FONT CANDIDATES
+# =========================
+# UK & INDIA: coba cari Arial-bold di beberapa kemungkinan nama file
+ARIAL_BOLD_CANDIDATES = [
+    os.path.join(BASE_DIR, "Arial-bold", "Arial-bold.ttf"),
+    os.path.join(BASE_DIR, "Arial-bold", "Arial-Bold.ttf"),
+    os.path.join(BASE_DIR, "Arial-bold.ttf"),
+]
 
-def _load_font(path, size):
-    try:
-        return ImageFont.truetype(path, size)
-    except:
-        return ImageFont.load_default()
+# BANGLADESH: verdana.ttf (sesuai permintaan)
+VERDANA_CANDIDATES = [
+    os.path.join(BASE_DIR, "verdana.ttf"),
+]
 
 
-# ==========================
-# UK CARD GENERATOR
-# ==========================
+def _load_first_available(candidates, size: int) -> ImageFont.FreeTypeFont:
+    """
+    Coba load font dari list path. Kalau semua gagal, pakai default Pillow
+    (biar bot tetap jalan dan nggak 'cannot open resource').
+    """
+    for path in candidates:
+        try:
+            if path and os.path.exists(path):
+                return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    # fallback aman
+    return ImageFont.load_default()
 
-def generate_uk_card(name: str, out_path: str):
 
-    img = Image.open(TEMPLATE_UK).convert("RGBA")
+# =========================
+# POSISI / SIZE TEKS
+# (Kalau mau geser, EDIT DI SINI AJA)
+# =========================
+
+# UK
+UK_NAME_POS = (260, 260)
+UK_NAME_SIZE = 42
+
+# INDIA
+INDIA_NAME_POS = (120, 950)
+INDIA_NAME_SIZE = 46
+
+# BD (header miring atas)
+BD_HEADER_POS = (260, 230)
+BD_HEADER_SIZE = 32
+
+
+# =========================
+# GENERATE UK
+# =========================
+
+def generate_uk_card(name: str, out_path: str) -> str:
+    """
+    Generate kartu UK — hanya pakai nama.
+    Detail lain (ID, Birth, Address) statis di template.
+    """
+    img = Image.open(TEMPLATE_UK).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    font_big = _load_font(ARIAL_BOLD, 40)
-    font_mid = _load_font(ARIAL_BOLD, 38)
+    font = _load_first_available(ARIAL_BOLD_CANDIDATES, UK_NAME_SIZE)
 
-    draw.text((190, 180), name, fill="black", font=font_big)
-    draw.text((240, 255), "1201-0732", fill="black", font=font_mid)
-    draw.text((240, 330), "10/10/2005", fill="black", font=font_mid)
-    draw.text((260, 405), "LONDON, UK", fill="black", font=font_mid)
+    # rapihin nama
+    text = name.title()
+    x, y = UK_NAME_POS
 
-    img.save(out_path, format="PNG")
-    return out_path
-
-
-# ==========================
-# INDIA CARD GENERATOR
-# ==========================
-
-def generate_india_card(name: str, out_path: str):
-
-    img = Image.open(TEMPLATE_IN).convert("RGBA")
-    draw = ImageDraw.Draw(img)
-
-    font_big = _load_font(ARIAL_BOLD, 42)
-    font_sml = _load_font(ARIAL_BOLD, 34)
-
-    draw.text((350, 310), name, fill="black", font=font_big)
-    draw.text((350, 390), "ECE", fill="black", font=font_sml)
-    draw.text((720, 390), "MU23ECE001", fill="black", font=font_sml)
-    draw.text((350, 460), "15/01/2000", fill="black", font=font_sml)
-    draw.text((720, 460), "11/25 - 11/26", fill="black", font=font_sml)
-    draw.text((350, 530), "+917546728719", fill="black", font=font_sml)
+    # sedikit bold (4 layer)
+    for ox, oy in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+        draw.text((x + ox, y + oy), text, font=font, fill="black")
 
     img.save(out_path, format="PNG")
     return out_path
 
 
 # =========================
+# GENERATE INDIA
+# =========================
+
+def generate_india_card(name: str, out_path: str) -> str:
+    """
+    Generate kartu India — hanya pakai nama.
+    Detail lain statis di template.
+    """
+    img = Image.open(TEMPLATE_IN).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    font = _load_first_available(ARIAL_BOLD_CANDIDATES, INDIA_NAME_SIZE)
+
+    text = name.title()
+    x, y = INDIA_NAME_POS
+
+    for ox, oy in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+        draw.text((x + ox, y + oy), text, font=font, fill="black")
+
+    img.save(out_path, format="PNG")
+    return out_path
+
+
+# =========================
+# GENERATE BANGLADESH
+# =========================
+
+def generate_bangladesh_card(name: str, out_path: str) -> str:
+    """
+    Generate Bangladesh fee receipt — header miring cuma pakai NAMA.
+    Font khusus: verdana.ttf (kalau ada), fallback ke default kalau nggak ketemu.
+    """
+    img = Image.open(TEMPLATE_BD).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    font = _load_first_available(VERDANA_CANDIDATES, BD_HEADER_SIZE)
+
+    clean_name = name.title()
+    x, y = BD_HEADER_POS
+
+    draw.text((x, y), clean_name, font=font, fill="black")
+
+    img.save(out_path, format="PNG")
+    return out_path
