@@ -113,8 +113,8 @@ INDIA_NAME_Y = 665
 INDIA_NAME_SIZE = 43
 
 # INDONESIA (center horizontal, bisa geser kanan/kiri pakai offset)
-ID_NAME_Y = 350          # atur tinggi nama di kartu Indonesia
-ID_NAME_X_OFFSET = 0     # geser kanan (+), kiri (-) kalau mau
+ID_NAME_Y = 330# atur tinggi nama di kartu Indonesia
+ID_NAME_X_OFFSET = 200     # geser kanan (+), kiri (-) kalau mau
 ID_NAME_SIZE = 50
 
 # BD
@@ -724,3 +724,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
