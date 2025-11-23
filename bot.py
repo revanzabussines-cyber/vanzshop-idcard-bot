@@ -1,6 +1,5 @@
 import os
 import re
-from uuid import uuid4
 
 from telegram import (
     Update,
@@ -33,6 +32,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_UK = os.path.join(BASE_DIR, "template_uk.png")
 TEMPLATE_IN = os.path.join(BASE_DIR, "template_india.png")
 TEMPLATE_BD = os.path.join(BASE_DIR, "template_bd.png")
+TEMPLATE_ID = os.path.join(BASE_DIR, "template_id.png")  # Indonesia
 
 # UK -> Arial Bold
 ARIAL_BOLD_CANDIDATES = [
@@ -46,12 +46,15 @@ ARIAL_REGULAR_CANDIDATES = [
     os.path.join(BASE_DIR, "arial.ttf"),
 ] + ARIAL_BOLD_CANDIDATES
 
+# INDONESIA -> pakai Arial Bold juga (biar tegas)
+ARIAL_ID_CANDIDATES = ARIAL_BOLD_CANDIDATES
+
 # BANGLADESH -> Verdana
 VERDANA_CANDIDATES = [
     os.path.join(BASE_DIR, "verdana.ttf"),
 ]
 
-# warna biru gelap (mirip teks NAME/ID/BIRTH)
+# warna biru gelap (mirip teks NAME/ID/BIRTH UK)
 DARK_BLUE = (27, 42, 89)
 
 
@@ -81,9 +84,13 @@ def make_safe_filename(text: str) -> str:
 UK_NAME_POS = (260, 260)   # posisi nama
 UK_NAME_SIZE = 42
 
-# INDIA
-INDIA_NAME_POS = (120, 950)
+# INDIA (center horizontal, Y bisa diatur)
+INDIA_NAME_Y = 950
 INDIA_NAME_SIZE = 46
+
+# INDONESIA (center horizontal juga)
+ID_NAME_Y = 540    # kira-kira tengah area kosong di kartu kampus
+ID_NAME_SIZE = 50
 
 # BD
 BD_HEADER_POS = (260, 230)
@@ -91,7 +98,7 @@ BD_HEADER_SIZE = 32
 
 
 # =========================
-# FUNGSI GENERATE CARD (DALAM bot.py)
+# FUNGSI GENERATE CARD
 # =========================
 
 def generate_uk_card(name: str, out_path: str) -> str:
@@ -113,14 +120,39 @@ def generate_uk_card(name: str, out_path: str) -> str:
 
 
 def generate_india_card(name: str, out_path: str) -> str:
-    """Generate kartu India. Nama: FULL KAPITAL, warna biru gelap, Arial.ttf."""
+    """Generate kartu India. Nama: FULL KAPITAL, warna HITAM, Arial.ttf, auto center."""
     img = Image.open(TEMPLATE_IN).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     font = _load_first_available(ARIAL_REGULAR_CANDIDATES, INDIA_NAME_SIZE)
 
     text = name.upper()
-    x, y = INDIA_NAME_POS
+
+    # hitung lebar teks biar bisa center di tengah gambar
+    text_w, text_h = draw.textsize(text, font=font)
+    x = (img.width - text_w) // 2
+    y = INDIA_NAME_Y  # tinggi diatur dari konstanta di atas
+
+    for ox, oy in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+        draw.text((x + ox, y + oy), text, font=font, fill="black")
+
+    img.save(out_path, format="PNG")
+    return out_path
+
+
+def generate_indonesia_card(name: str, out_path: str) -> str:
+    """Generate kartu Indonesia (Universitas Islam Indonesia style). FULL KAPITAL, biru gelap, center."""
+    img = Image.open(TEMPLATE_ID).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    font = _load_first_available(ARIAL_ID_CANDIDATES, ID_NAME_SIZE)
+
+    text = name.upper()
+
+    # center horizontal
+    text_w, text_h = draw.textsize(text, font=font)
+    x = (img.width - text_w) // 2
+    y = ID_NAME_Y
 
     for ox, oy in [(0, 0), (1, 0), (0, 1), (1, 1)]:
         draw.text((x + ox, y + oy), text, font=font, fill=DARK_BLUE)
@@ -166,6 +198,9 @@ def start(update: Update, context: CallbackContext):
             InlineKeyboardButton("🇬🇧 UK", callback_data="TPL_UK"),
             InlineKeyboardButton("🇮🇳 India", callback_data="TPL_IN"),
             InlineKeyboardButton("🇧🇩 Bangladesh", callback_data="TPL_BD"),
+        ],
+        [
+            InlineKeyboardButton("🇮🇩 Indonesia", callback_data="TPL_ID"),
         ]
     ]
 
@@ -184,6 +219,9 @@ def card_cmd(update: Update, context: CallbackContext):
             InlineKeyboardButton("🇬🇧 UK", callback_data="TPL_UK"),
             InlineKeyboardButton("🇮🇳 India", callback_data="TPL_IN"),
             InlineKeyboardButton("🇧🇩 Bangladesh", callback_data="TPL_BD"),
+        ],
+        [
+            InlineKeyboardButton("🇮🇩 Indonesia", callback_data="TPL_ID"),
         ]
     ]
     update.message.reply_text(
@@ -203,6 +241,7 @@ def template_chosen(update: Update, context: CallbackContext):
         "TPL_UK": "UK",
         "TPL_IN": "INDIA",
         "TPL_BD": "BD",
+        "TPL_ID": "IDN",   # Indonesia
     }
 
     tpl = tpl_map.get(data)
@@ -212,8 +251,15 @@ def template_chosen(update: Update, context: CallbackContext):
 
     context.user_data["template"] = tpl
 
+    label = {
+        "UK": "UK",
+        "INDIA": "India",
+        "BD": "Bangladesh",
+        "IDN": "Indonesia",
+    }[tpl]
+
     query.message.reply_text(
-        f"✅ Template *{tpl}* dipilih.\n\n"
+        f"✅ Template *{label}* dipilih.\n\n"
         "Sekarang kirim *nama* yang mau dibuat kartunya (1–10 baris, 1 baris 1 nama).",
         parse_mode="Markdown",
     )
@@ -240,9 +286,9 @@ def handle_names(update: Update, context: CallbackContext):
         title_name = raw_name.title()
 
         # dasar nama file:
-        # UK & INDIA -> nama kapital
+        # UK / INDIA / INDONESIA -> pakai nama kapital
         # BD -> title case
-        if tpl in ("UK", "INDIA"):
+        if tpl in ("UK", "INDIA", "IDN"):
             safe_base = make_safe_filename(upper_name)
         else:
             safe_base = make_safe_filename(title_name)
@@ -279,12 +325,26 @@ def handle_names(update: Update, context: CallbackContext):
                     "🌐 *Domain :* mu.ac.in\n"
                 )
 
+            elif tpl == "IDN":
+                generate_indonesia_card(upper_name, out_path)
+
+                caption = f"🇮🇩 Indonesia • {upper_name}"
+                info_text = (
+                    "📙 *Kartu Indonesia (Universitas Islam Indonesia)*\n\n"
+                    f"👤 *Nama Lengkap :* {upper_name}\n"
+                    "🏫 *Universitas :* Universitas Islam Indonesia\n\n"
+                    "🎓 *Program / Class (di kartu) :* Informatika\n"
+                    "📞 *Phone (di kartu) :* +6281251575890\n"
+                    "🎂 *TTL (di kartu) :* 01 Januari 2005\n"
+                    "🌐 *Domain :* pnj.ac.id\n"
+                )
+
             else:  # BD
                 generate_bangladesh_card(title_name, out_path)
 
                 caption = f"🇧🇩 Bangladesh • {title_name}"
                 info_text = (
-                    "📙 *Bangladesh Fee Receipt (Uttara Town College)*\n\n"
+                    "📕 *Bangladesh Fee Receipt (Uttara Town College)*\n\n"
                     f"👤 *Nama (header) :* {title_name}\n"
                     "🏫 *College :* Uttara Town College\n"
                     "📆 *Registration Date (di kartu) :* 14.10.25\n"
