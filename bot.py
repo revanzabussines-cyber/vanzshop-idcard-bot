@@ -35,7 +35,7 @@ TEMPLATE_IN = os.path.join(BASE_DIR, "template_india.png")
 TEMPLATE_BD = os.path.join(BASE_DIR, "template_bd.png")
 
 ARIAL_BOLD_CANDIDATES = [
-    os.path.join(BASE_DIR, "Arial-bold", "Arial.ttf"),
+    os.path.join(BASE_DIR, "Arial-bold", "arial.ttf"),
     os.path.join(BASE_DIR, "Arial-bold", "Arial-Bold.ttf"),
     os.path.join(BASE_DIR, "Arial-bold.ttf"),
 ]
@@ -332,5 +332,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
