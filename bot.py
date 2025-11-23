@@ -106,14 +106,14 @@ UK_NAME_SIZE = 42
 
 # INDIA (center horizontal, Y bisa diatur)
 INDIA_NAME_Y = 665
-INDIA_NAME_SIZE = 46
+INDIA_NAME_SIZE = 43
 
 # INDONESIA (center horizontal juga)
-ID_NAME_Y = 540    # atur tinggi nama di kartu Indonesia
+ID_NAME_Y = 350    # atur tinggi nama di kartu Indonesia
 ID_NAME_SIZE = 50
 
 # BD
-BD_HEADER_POS = (260, 400)
+BD_HEADER_POS = (260, 700)
 BD_HEADER_SIZE = 32
 
 
@@ -668,6 +668,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
