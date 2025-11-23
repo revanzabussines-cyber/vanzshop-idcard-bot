@@ -34,12 +34,19 @@ TEMPLATE_UK = os.path.join(BASE_DIR, "template_uk.png")
 TEMPLATE_IN = os.path.join(BASE_DIR, "template_india.png")
 TEMPLATE_BD = os.path.join(BASE_DIR, "template_bd.png")
 
+# UK -> Arial Bold
 ARIAL_BOLD_CANDIDATES = [
+    os.path.join(BASE_DIR, "Arial-bold", "Arial-bold.ttf"),
     os.path.join(BASE_DIR, "Arial-bold", "Arial-Bold.ttf"),
-    os.path.join(BASE_DIR, "Arial-bold", "arial.ttf"),
-    os.path.join(BASE_DIR, "verdana.ttf"),
+    os.path.join(BASE_DIR, "Arial-bold.ttf"),
 ]
 
+# INDIA -> Arial biasa (arial.ttf), fallback ke Arial Bold / default
+ARIAL_REGULAR_CANDIDATES = [
+    os.path.join(BASE_DIR, "arial.ttf"),
+] + ARIAL_BOLD_CANDIDATES
+
+# BANGLADESH -> Verdana
 VERDANA_CANDIDATES = [
     os.path.join(BASE_DIR, "verdana.ttf"),
 ]
@@ -71,7 +78,7 @@ def make_safe_filename(text: str) -> str:
 # =========================
 
 # UK
-UK_NAME_POS = (250, 325)   # posisi nama
+UK_NAME_POS = (260, 260)   # posisi nama
 UK_NAME_SIZE = 42
 
 # INDIA
@@ -88,7 +95,7 @@ BD_HEADER_SIZE = 32
 # =========================
 
 def generate_uk_card(name: str, out_path: str) -> str:
-    """Generate kartu UK. Nama: FULL KAPITAL, warna biru gelap."""
+    """Generate kartu UK. Nama: FULL KAPITAL, warna biru gelap, Arial Bold."""
     img = Image.open(TEMPLATE_UK).convert("RGB")
     draw = ImageDraw.Draw(img)
 
@@ -106,11 +113,11 @@ def generate_uk_card(name: str, out_path: str) -> str:
 
 
 def generate_india_card(name: str, out_path: str) -> str:
-    """Generate kartu India. Nama: FULL KAPITAL, warna biru gelap."""
+    """Generate kartu India. Nama: FULL KAPITAL, warna biru gelap, Arial.ttf."""
     img = Image.open(TEMPLATE_IN).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    font = _load_first_available(ARIAL_BOLD_CANDIDATES, INDIA_NAME_SIZE)
+    font = _load_first_available(ARIAL_REGULAR_CANDIDATES, INDIA_NAME_SIZE)
 
     text = name.upper()
     x, y = INDIA_NAME_POS
@@ -227,13 +234,21 @@ def handle_names(update: Update, context: CallbackContext):
         names = names[:10]
         update.message.reply_text("⚠ Maksimal 10 baris. Dipakai 10 baris pertama.")
 
-    for idx, name in enumerate(names, start=1):
+    for name in names:
         raw_name = name.strip()
         upper_name = raw_name.upper()
         title_name = raw_name.title()
 
-        safe_name = make_safe_filename(raw_name)
-        out_path = f"{tpl.lower()}_{safe_name}_{idx}.png"
+        # dasar nama file:
+        # UK & INDIA -> nama kapital
+        # BD -> title case
+        if tpl in ("UK", "INDIA"):
+            safe_base = make_safe_filename(upper_name)
+        else:
+            safe_base = make_safe_filename(title_name)
+
+        # tanpa nomor di belakang: <NAMA>.png
+        out_path = f"{safe_base}.png"
 
         try:
             # ====== Generate kartu ======
@@ -243,11 +258,12 @@ def handle_names(update: Update, context: CallbackContext):
                 caption = f"🇬🇧 UK • {upper_name}"
                 info_text = (
                     "📘 *Kartu UK (LSE)*\n\n"
-                    f"👤 *Nama Lengkap:* {upper_name}\n"
-                    "🏫 *Universitas:* The London School of Economics and Political Science (LSE)\n"
-                    "🪪 *ID (di kartu):* 1201-0732\n"
-                    "🎂 *Tanggal Lahir (di kartu):* 10/10/2005\n"
-                    "📍 *Alamat (di kartu):* London, UK\n"
+                    f"👤 *Nama Lengkap :* {upper_name}\n"
+                    "🏫 *Universitas :* The London School of Economics and Political Science (LSE)\n\n"
+                    "🪪 *ID (di kartu) :* 1201-0732\n"
+                    "🎂 *Tanggal Lahir (di kartu) :* 10/10/2005\n"
+                    "📍 *Alamat (di kartu) :* London, UK\n"
+                    "🌐 *Domain :* lse.ac.uk\n"
                 )
 
             elif tpl == "INDIA":
@@ -256,13 +272,11 @@ def handle_names(update: Update, context: CallbackContext):
                 caption = f"🇮🇳 India • {upper_name}"
                 info_text = (
                     "📗 *Kartu India (University of Mumbai)*\n\n"
-                    f"👤 *Nama Lengkap:* {upper_name}\n"
-                    "🏫 *Universitas:* University of Mumbai\n"
-                    "🪪 *ID No (di kartu):* MU23ECE001\n"
-                    "📚 *Class (di kartu):* ECE\n"
-                    "🎂 *D.O.B (di kartu):* 15/01/2000\n"
-                    "📆 *Validity (di kartu):* 11/25 - 11/26\n"
-                    "📞 *Mobile (di kartu):* +917546728719\n"
+                    f"👤 *Nama Lengkap :* {upper_name}\n"
+                    "🏫 *Universitas :* University of Mumbai\n\n"
+                    "🎂 *D.O.B (di kartu) :* 15/01/2000\n"
+                    "📆 *Validity (di kartu) :* 11/25 - 11/26\n"
+                    "🌐 *Domain :* mu.ac.in\n"
                 )
 
             else:  # BD
@@ -271,10 +285,10 @@ def handle_names(update: Update, context: CallbackContext):
                 caption = f"🇧🇩 Bangladesh • {title_name}"
                 info_text = (
                     "📙 *Bangladesh Fee Receipt (Uttara Town College)*\n\n"
-                    f"👤 *Nama (header):* {title_name}\n"
-                    "🏫 *College:* Uttara Town College\n"
-                    "📆 *Registration Date (di kartu):* 14.10.25\n"
-                    "💰 *Amount (di kartu):* 18500 BDT\n"
+                    f"👤 *Nama (header) :* {title_name}\n"
+                    "🏫 *College :* Uttara Town College\n"
+                    "📆 *Registration Date (di kartu) :* 14.10.25\n"
+                    "💰 *Amount (di kartu) :* 18500 BDT\n"
                 )
 
             # ====== Kirim file PNG sebagai document ======
@@ -332,7 +346,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
