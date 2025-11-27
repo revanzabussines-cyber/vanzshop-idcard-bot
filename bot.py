@@ -82,9 +82,6 @@ VERDANA_CANDIDATES = [
 # warna biru gelap baru (#1E2365)
 DARK_BLUE = (30, 35, 101)
 
-# warna brown untuk Bangladesh
-BD_BROWN = (165, 42, 42)
-
 
 def _load_first_available(candidates, size: int) -> ImageFont.FreeTypeFont:
     """Coba load font dari list path, kalau gagal pakai default Pillow."""
@@ -196,18 +193,17 @@ def generate_indonesia_card(name: str, out_path: str) -> str:
 
 
 def generate_bangladesh_card(name: str, out_path: str) -> str:
-    """Generate fee receipt Bangladesh. Nama Title Case, Verdana, warna brown."""
+    """Generate fee receipt Bangladesh. Nama Title Case, Verdana, warna hitam."""
     img = Image.open(TEMPLATE_BD).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # font khusus Bangladesh: Verdana
     font = _load_first_available(VERDANA_CANDIDATES, BD_HEADER_SIZE)
 
     clean_name = name.title()
     x, y = BD_HEADER_POS
 
-    # teks warna brown
-    draw.text((x, y), clean_name, font=font, fill=BD_BROWN)
+    # teks warna HITAM
+    draw.text((x, y), clean_name, font=font, fill="black")
 
     img.save(out_path, format="PNG")
     return out_path
@@ -364,9 +360,11 @@ def action_buttons(update: Update, context: CallbackContext):
     lang = get_lang(context)
     is_premium = user.id in PREMIUM_USERS
 
+    # agar notifikasi loading di HP ilang
     query.answer()
 
     if data == "ACT_SINGLE" or data == "ACT_BATCH":
+        # ACT_BATCH sekarang diperlakukan sama, bedanya cuma teks
         context.user_data["mode"] = "batch" if data == "ACT_BATCH" else "single"
         context.user_data["step"] = "choose_template"
 
@@ -406,12 +404,14 @@ def action_buttons(update: Update, context: CallbackContext):
         query.message.reply_text(text, parse_mode="Markdown")
 
     elif data == "BTN_LANG":
+        # ganti bahasa, tapi gak ganggu step proses (kecuali di menu awal)
         old_lang = lang
         new_lang = "en" if old_lang == "id" else "id"
         context.user_data["lang"] = new_lang
         is_premium = user.id in PREMIUM_USERS
         remaining = get_remaining_quota(user.id, is_premium)
 
+        # kalau lagi di menu utama, rebuild teks + keyboard
         if context.user_data.get("step") == "choose_action":
             text = build_start_text(user, new_lang, is_premium, remaining)
             keyboard = build_action_keyboard(new_lang)
@@ -421,6 +421,7 @@ def action_buttons(update: Update, context: CallbackContext):
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
         else:
+            # lagi di tengah flow, cukup kasih notif
             if new_lang == "en":
                 query.message.reply_text("🌐 Language switched to *English*.", parse_mode="Markdown")
             else:
@@ -480,6 +481,7 @@ def handle_names(update: Update, context: CallbackContext):
     tpl = context.user_data.get("template")
     step = context.user_data.get("step")
 
+    # kalau bukan lagi fase input nama, cuekin aja
     if step != "input_names" or not tpl:
         return
 
@@ -504,6 +506,7 @@ def handle_names(update: Update, context: CallbackContext):
         else:
             update.message.reply_text("⚠ Maksimal 10 baris. Dipakai 10 baris pertama.")
 
+    # cek quota free
     if not is_premium:
         if remaining <= 0:
             if lang == "en":
@@ -531,6 +534,7 @@ def handle_names(update: Update, context: CallbackContext):
                     f"Dipakai {remaining} baris pertama."
                 )
 
+    # info mode saat generate
     if is_premium:
         if lang == "en":
             status_text = "🔓 *Premium mode active.* Generating your card(s)..."
@@ -632,6 +636,8 @@ def handle_names(update: Update, context: CallbackContext):
     if not is_premium and generated > 0:
         rec["count"] += generated
 
+    # setelah selesai, reset state
+    # TIDAK auto kirim menu /start lagi (sesuai request)
     context.user_data["step"] = None
     context.user_data["template"] = None
     context.user_data["mode"] = None
@@ -644,6 +650,7 @@ def handle_names(update: Update, context: CallbackContext):
 def add_premium(update: Update, context: CallbackContext):
     user = update.effective_user
 
+    # cek permission
     if user.id != OWNER_ID:
         update.message.reply_text("❌ Kamu tidak punya akses untuk command ini.")
         return
@@ -651,6 +658,7 @@ def add_premium(update: Update, context: CallbackContext):
     target_id = None
     target_name = None
 
+    # 1) kalau pakai argumen: /addpremium 123456789
     if context.args:
         try:
             target_id = int(context.args[0])
@@ -662,6 +670,7 @@ def add_premium(update: Update, context: CallbackContext):
             )
             return
 
+    # 2) kalau reply ke user: /addpremium (di-reply-in)
     elif update.message.reply_to_message:
         replied_user = update.message.reply_to_message.from_user
         target_id = replied_user.id
@@ -676,6 +685,7 @@ def add_premium(update: Update, context: CallbackContext):
         )
         return
 
+    # tambah ke set PREMIUM_USERS
     if target_id in PREMIUM_USERS:
         update.message.reply_text(
             f"ℹ️ User ini sudah ada di daftar premium.\nID: `{target_id}`",
@@ -703,13 +713,16 @@ def main():
     updater = Updater(token=BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
+    # command
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("card", start))  # alias
     dp.add_handler(CommandHandler("addpremium", add_premium))
 
+    # inline buttons
     dp.add_handler(CallbackQueryHandler(action_buttons, pattern="^(ACT_|BTN_)"))
     dp.add_handler(CallbackQueryHandler(template_chosen, pattern="^TPL_"))
 
+    # text input (nama)
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_names))
 
     updater.start_polling()
